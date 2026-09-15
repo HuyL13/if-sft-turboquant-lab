@@ -1,0 +1,17 @@
+{
+  "repositories": {
+    "Model-Fingerprint": {
+      "url": "https://github.com/cnut1648/Model-Fingerprint.git",
+      "commit": "4ae5e8a124c37f25a3711c407e85a45fda6ecb08"
+    },
+    "upstream/vllm": {
+      "url": "https://github.com/vllm-project/vllm.git",
+      "commit": "836bb3839ffefcda8283ea7d41671a89e1a613df"
+    }
+  },
+  "ppl": {
+    "source": "../eval_ppl.py (user Downloads root)",
+    "sha256": "309d4b01d5686143fbdc25031349ac1a0e49b67eba8a3242e73b68b307c7bfed",
+    "status": "original file preserved; no native vLLM backend"
+  }
+}

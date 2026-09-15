@@ -1,0 +1,6 @@
+[project]
+name = "if-sft-turboquant-lab"
+version = "0.1.0"
+description = "Upstream IF-SFT fingerprint evaluation under TurboQuant KV-cache quantization"
+requires-python = ">=3.10"
+dependencies = []

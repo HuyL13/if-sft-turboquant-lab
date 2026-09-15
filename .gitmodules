@@ -1,0 +1,6 @@
+[submodule "Model-Fingerprint"]
+	path = Model-Fingerprint
+	url = https://github.com/cnut1648/Model-Fingerprint.git
+[submodule "upstream/vllm"]
+	path = upstream/vllm
+	url = https://github.com/vllm-project/vllm.git

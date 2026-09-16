@@ -48,43 +48,43 @@ Use Linux/Colab with an existing working Torch/CUDA stack and a native BF16 GPU
 overhead; an A100 40 GB is a practical target. A Colab T4 does not meet this
 experiment's native BF16 requirement.
 
-The pinned vLLM release requires **Torch 2.11.0**. Colab's existing
-`torch 2.11.0+cu128` stays in place; no alternate Torch environment is created.
-The official v0.20.0 release assets have CUDA 12.9/13.0 builds, **not a CUDA 12.8
-wheel**. A matching Torch version alone does not establish CUDA binary compatibility.
+### Default: isolated official wheels (fast installation)
 
-When vLLM is absent, setup compiles the pinned official source using the current
-Python/Torch and CUDA toolkit. `nvcc` must report the same CUDA major/minor version
-as `torch.version.cuda` (12.8 for the reported Colab runtime). An existing C++
-compiler is required. Missing tools or dependency conflicts stop with an error;
-setup does not install/change Torch, CUDA runtime or toolkit. The build uses
-`--no-deps --no-build-isolation`; a completed local wheel is installed with
-`--no-deps`. No precompiled wheel fallback is used.
+The approved path creates `.venv-cu130` without system site-packages and installs:
 
-Compilation can be lengthy. It defaults to `MAX_JOBS=2`, `NVCC_THREADS=1`, and the
-current GPU's compute capability. Work happens in a separate local clone under
-`build/`, leaving the upstream submodule untouched. A SHA256/provenance manifest
-allows successful builds to be reused. Installed vLLM is reused only if its
-TurboQuant source matches the pin. See [upstream build guidance](https://github.com/vllm-project/vllm/blob/v0.20.0/docs/getting_started/installation/gpu.cuda.inc.md).
+- Torch `2.11.0+cu130`, torchvision `0.26.0+cu130`, torchaudio `2.11.0+cu130`.
+- Official PyPI vLLM `0.20.0` wheel (CUDA 13.0), matching the pinned source.
+- Transformers `4.57.6`, FastChat `0.2.36` and experiment dependencies.
 
-Application/build dependencies such as `packaging` may be installed or updated to
-satisfy upstream requirements after inspecting a pip dry-run report. Already
-satisfactory versions are retained where the dependency graph permits. Only the
-existing Torch/CUDA/Triton stack is frozen by exact-version constraints; any plan
-that would install or replace those protected packages is rejected. Separate
-CUTLASS DSL, cuDNN frontend, base `cuda-tile`, and the standalone
-`nvidia-cuda-nvdisasm` utility are application/build dependencies. This does not
-enable installation of CUDA toolkit/runtime packages: for example, toolkit
-dependencies of `cuda-tile[tileiras]` remain blocked by the full plan audit.
-Installing auxiliary Python packages does not establish that their optional GPU
-backends support the current GPU/toolkit; this experiment uses upstream TurboQuant.
-Only audited dependency wheel URLs
-with SHA256 are installed with `--no-deps`. Only the pinned vLLM source is built;
-other dependencies must have binary wheels. An unsatisfiable graph stops; Torch
-is never changed to satisfy application requirements.
-Torch/CUDA snapshots are checked in fresh subprocesses after each installation and
-after inference. Credentials are read by the normal HF/Git clients, never written to
-experiment manifests.
+Requires NVIDIA driver >=580.65.06 and a native BF16 GPU. The reported Colab A100
+with driver 580.82.07 meets this initial check; actual GPU checks are still required.
+No nvcc or C++ compiler is needed for installation. Runtime Triton compilation and
+model startup can still take time. Downloads include several GB of GPU libraries.
+
+All pip commands target the verified venv interpreter, use public official indexes
+and require binary wheels (`--only-binary=:all:`). No source-build fallback exists.
+Inherited PIP/UV/PYTHONPATH configuration is removed. System Colab Torch stays intact:
+a fresh system-Python snapshot of Torch/version/CUDA/RECORD and installed package
+versions is compared before and after setup and inference, including failures.
+No notebook-kernel switch or `source activate` is needed. All model stages use the
+same venv Python. A completed environment is reused when its package list matches.
+
+Before model downloads, setup checks package consistency, Torch BF16 matrix
+multiplication, the compiled vLLM RMSNorm CUDA kernel, upstream TurboQuant source
+and presets, and the IF-SFT Vicuna template. These small checks do **not** prove
+TurboQuant inference works: the real four-condition sweep is still required.
+
+Logs: `results/logs/run_full.log`. Provenance: `env/system-before.json`,
+`env/system-after.json`, `env/isolated-pip-report.json`,
+`env/isolated-pip-freeze.txt`, and `env/wheel-smoke.json`.
+
+### Optional legacy mode
+
+`IF_SFT_RUNTIME=existing bash run_full.sh ...` selects the previous source-build
+path against existing Torch/CUDA. It can be slow and is not the default. That path
+still forbids replacing its Torch/CUDA/Triton stack. The isolated mode does not
+use or wait for legacy build artifacts. Stop any previous build cell before using
+the new launcher; it does not kill unrelated processes automatically.
 
 ## Run
 
@@ -129,15 +129,15 @@ PY
 bash run_full.sh --fsr-only
 ```
 
-This is a source-build path, not a verified Colab binary install. The development
-machine has no CUDA GPU/toolkit, so real compilation and model inference must still
-be validated in the Colab runtime. The pipeline will not change Torch to get past
-a build failure.
+The development machine has no CUDA GPU, so the new binary installation and GPU
+checks must still run on Colab. `--setup-only` performs setup and the small GPU
+checks without downloading or running the 7B model.
 
 Useful options:
 
 ```bash
 bash run_full.sh --help
+bash run_full.sh --setup-only
 bash run_full.sh --fsr-only
 FORCE=1 bash run_full.sh --fsr-only
 ```

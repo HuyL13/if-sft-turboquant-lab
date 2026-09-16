@@ -10,3 +10,4 @@ dataset_cache/
 *.egg-info/
 build/
 dist/
+.venv-cu130/

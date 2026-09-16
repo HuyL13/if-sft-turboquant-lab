@@ -6,6 +6,7 @@ second resolver from selecting a different dependency graph.
 """
 import importlib.metadata as metadata
 import json
+import os
 import re
 import subprocess
 import sys
@@ -150,13 +151,20 @@ def setup(root):
     transformer_requirement = next(r for r in common if r.startswith("transformers"))
     requirements = ["datasets", "scipy", "numpy", "pyyaml", "fschat", transformer_requirement,
                     "accelerate", "huggingface-hub", "sentencepiece", "protobuf"]
-    if "vllm" not in installed():
+    isolated = os.environ.get("IF_SFT_ISOLATED_WHEELS") == "1"
+    if isolated:
+        # The launcher already resolved and checked all dependencies in the venv.
+        # No application package mutation or source-build fallback during inference.
+        if sys.prefix == sys.base_prefix or "vllm" not in installed():
+            raise RuntimeError("Isolated wheel mode requires the prepared venv")
+    elif "vllm" not in installed():
         print("[SETUP] Building pinned vLLM with existing Torch/CUDA; no Torch installation", flush=True)
         provision(root, before, distributions, requirements)
     else:
         # Validate dependencies even when an installed vLLM bypasses the resolver.
         requirements.extend(metadata.requires("vllm") or [])
-    install_missing(requirements, env, before, distributions)
+    if not isolated:
+        install_missing(requirements, env, before, distributions)
     from vllm.model_executor.layers.quantization.turboquant.config import TQ_PRESETS
     from .protocol import CONDITIONS
     for dtype in list(CONDITIONS.values())[2:]:

@@ -6,7 +6,10 @@
     },
     "upstream/vllm": {
       "url": "https://github.com/vllm-project/vllm.git",
-      "commit": "836bb3839ffefcda8283ea7d41671a89e1a613df"
+      "commit": "88d34c6409e9fb3c7b8ca0c04756f061d2099eb1",
+      "release": "v0.20.0",
+      "torch": "2.11.0",
+      "installation": "source build against the existing Torch/CUDA; no precompiled fallback"
     }
   },
   "ppl": {

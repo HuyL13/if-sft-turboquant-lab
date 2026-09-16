@@ -9,9 +9,7 @@ import json
 import re
 import subprocess
 import sys
-import urllib.request
 import urllib.parse
-from html.parser import HTMLParser
 from pathlib import Path
 from .protocol import write_json
 
@@ -26,6 +24,10 @@ def installed():
 
 def protected(name):
     name = canonical(name)
+    # These are separate build/frontend packages, not CUDA runtime replacements.
+    # Existing versions remain protected by validate_install_plan regardless.
+    if name == "nvidia-cudnn-frontend" or name.startswith("nvidia-cutlass-dsl"):
+        return False
     return (name in {"torch", "torchvision", "torchaudio", "triton", "pytorch-triton"}
             or name.startswith(("nvidia-", "cuda-", "cupy", "triton-")))
 
@@ -75,15 +77,17 @@ def missing_requirements(requirements, existing):
 
 
 def install_missing(requirements, env_dir, before, distributions):
-    missing = missing_requirements(requirements, installed())
-    if not missing:
+    missing_requirements(requirements, installed())
+    # Installed base distributions can still lack declared extras or transitive
+    # dependencies. Always audit the whole nonempty requirement graph.
+    if not requirements:
         return
     env_dir = Path(env_dir)
     constraint = env_dir / "existing-constraints.txt"
     constraint.write_text("\n".join(f"{n}=={v}" for n, v in installed().items()) + "\n", encoding="utf-8")
     plan = env_dir / "pip-plan.json"
     command = [sys.executable, "-m", "pip", "install", "--dry-run", "--only-binary=:all:",
-               "--report", str(plan), "--constraint", str(constraint), *missing]
+               "--report", str(plan), "--constraint", str(constraint), *requirements]
     subprocess.run(command, check=True)
     report = json.loads(plan.read_text(encoding="utf-8"))
     validate_install_plan(report, installed())
@@ -101,52 +105,6 @@ def install_missing(requirements, env_dir, before, distributions):
             subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", *wheels], check=True)
         finally:
             assert_unchanged(before, distributions)
-
-
-def pinned_vllm_wheel(root, before):
-    """Find an official wheel for the cloned commit and the existing CUDA stack."""
-    from packaging.tags import sys_tags
-    from packaging.utils import parse_wheel_filename
-    from packaging.version import Version
-    source = root / "upstream/vllm"
-    requirements = (source / "requirements/cuda.txt").read_text(encoding="utf-8")
-    required = re.search(r"^torch==([^\s;#]+)", requirements, re.MULTILINE)
-    if not required or Version(before["torch"]).base_version != Version(required[1]).base_version:
-        raise RuntimeError(f"Pinned vLLM source requires {required[0] if required else 'unrecognized Torch build'}; "
-                           f"runtime has torch {before['torch']}. Refusing to replace Torch.")
-    variant = "cu" + before["cuda"].replace(".", "")
-    commit = json.loads((root / "upstream-lock.json").read_text(encoding="utf-8"))["repositories"]["upstream/vllm"]["commit"]
-    index = f"https://wheels.vllm.ai/{commit}/{variant}/vllm/"
-
-    class Links(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.urls = []
-
-        def handle_starttag(self, tag, attrs):
-            if tag == "a":
-                href = dict(attrs).get("href")
-                if href:
-                    self.urls.append(urllib.parse.urljoin(index, href))
-
-    parser = Links()
-    with urllib.request.urlopen(index, timeout=30) as response:
-        parser.feed(response.read().decode("utf-8"))
-    compatible = []
-    tags = set(sys_tags())
-    for url in parser.urls:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != "https" or parsed.hostname != "wheels.vllm.ai" or commit not in parsed.path:
-            continue
-        filename = urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1])
-        if not filename.endswith(".whl"):
-            continue
-        _, _, _, wheel_tags = parse_wheel_filename(filename)
-        if tags & wheel_tags:
-            compatible.append(url)
-    if len(compatible) != 1:
-        raise RuntimeError(f"Need exactly one compatible wheel for pinned commit/CUDA, found {len(compatible)} at {index}")
-    return compatible[0]
 
 
 def verify_vllm_source(root, installed_module):
@@ -176,11 +134,17 @@ def setup(root):
         raise RuntimeError("This BF16 experiment needs a GPU with native BF16 support (SM80+)")
     # Resolve both engines together so an early IF-only install cannot select a
     # Transformers version incompatible with the pinned vLLM wheel.
-    requirements = ["datasets", "scipy", "numpy", "pyyaml", "fschat", "transformers>=5.10.4",
-                    "accelerate", "huggingface-hub>=1.31.0", "sentencepiece", "protobuf"]
+    from .build_vllm import provision, read_requirements
+    common = read_requirements(root / "upstream/vllm/requirements/common.txt")
+    transformer_requirement = next(r for r in common if r.startswith("transformers"))
+    requirements = ["datasets", "scipy", "numpy", "pyyaml", "fschat", transformer_requirement,
+                    "accelerate", "huggingface-hub", "sentencepiece", "protobuf"]
     if "vllm" not in installed():
-        wheel = pinned_vllm_wheel(root, before)
-        requirements.append(wheel)
+        print("[SETUP] Building pinned vLLM with existing Torch/CUDA; no Torch installation", flush=True)
+        provision(root, before, distributions, requirements)
+    else:
+        # Validate dependencies even when an installed vLLM bypasses the resolver.
+        requirements.extend(metadata.requires("vllm") or [])
     install_missing(requirements, env, before, distributions)
     from vllm.model_executor.layers.quantization.turboquant.config import TQ_PRESETS
     from .protocol import CONDITIONS

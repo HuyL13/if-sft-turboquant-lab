@@ -31,7 +31,7 @@ The upstream folders are real Git submodules, pinned in `upstream-lock.json`:
 - [Model-Fingerprint](https://github.com/cnut1648/Model-Fingerprint), commit
   `4ae5e8a124c37f25a3711c407e85a45fda6ecb08` → `Model-Fingerprint/`.
 - [vLLM](https://github.com/vllm-project/vllm), commit
-  `836bb3839ffefcda8283ea7d41671a89e1a613df` → `upstream/vllm/`.
+  `88d34c6409e9fb3c7b8ca0c04756f061d2099eb1` (release **v0.20.0**) → `upstream/vllm/`.
 - [Public checkpoint](https://huggingface.co/cnut1648/LLaMA2-7B-fingerprinted-SFT).
   Its resolved revision is persisted at first run; all engines use the same cached
   immutable snapshot, including tokenizer files.
@@ -48,18 +48,33 @@ Use Linux/Colab with an existing working Torch/CUDA stack and a native BF16 GPU
 overhead; an A100 40 GB is a practical target. A Colab T4 does not meet this
 experiment's native BF16 requirement.
 
-The pinned vLLM source currently requires **Torch 2.13.0** for its standard CUDA
-build. That is an upstream requirement, **not an instruction to change Colab Torch**.
-Setup reuses an installed compatible build, or looks for an official wheel at the
-pinned commit's index for the existing Torch/CUDA/Python platform. Missing or
-incompatible builds stop setup. See [upstream installation guidance](https://docs.vllm.ai/en/latest/getting_started/installation/gpu/)
-for binary compatibility limits.
+The pinned vLLM release requires **Torch 2.11.0**. Colab's existing
+`torch 2.11.0+cu128` stays in place; no alternate Torch environment is created.
+The official v0.20.0 release assets have CUDA 12.9/13.0 builds, **not a CUDA 12.8
+wheel**. A matching Torch version alone does not establish CUDA binary compatibility.
+
+When vLLM is absent, setup compiles the pinned official source using the current
+Python/Torch and CUDA toolkit. `nvcc` must report the same CUDA major/minor version
+as `torch.version.cuda` (12.8 for the reported Colab runtime). An existing C++
+compiler is required. Missing tools or dependency conflicts stop with an error;
+setup does not install/change Torch, CUDA runtime or toolkit. The build uses
+`--no-deps --no-build-isolation`; a completed local wheel is installed with
+`--no-deps`. No precompiled wheel fallback is used.
+
+Compilation can be lengthy. It defaults to `MAX_JOBS=2`, `NVCC_THREADS=1`, and the
+current GPU's compute capability. Work happens in a separate local clone under
+`build/`, leaving the upstream submodule untouched. A SHA256/provenance manifest
+allows successful builds to be reused. Installed vLLM is reused only if its
+TurboQuant source matches the pin. See [upstream build guidance](https://github.com/vllm-project/vllm/blob/v0.20.0/docs/getting_started/installation/gpu.cuda.inc.md).
 
 Non-Torch packages are installed only when absent and after inspecting a pip dry-run
 report. Existing distributions are constrained; any resolver plan that would change
-one or add/change Torch, NVIDIA, CUDA or Triton is rejected. Only audited wheel URLs
-with SHA256 are installed with `--no-deps`. No source build hooks are executed by
-this installer. A conflicting existing environment stops, rather than being upgraded.
+one or add/change Torch, CUDA runtime or Triton is rejected. Separate CUTLASS DSL
+and cuDNN frontend packages may be added when absent; installed versions remain
+protected. Only audited dependency wheel URLs
+with SHA256 are installed with `--no-deps`. Only the pinned vLLM source is built;
+other dependencies must have binary wheels. A conflicting existing environment
+stops, rather than being upgraded.
 Torch/CUDA snapshots are checked in fresh subprocesses after each installation and
 after inference. Credentials are read by the normal HF/Git clients, never written to
 experiment manifests.
@@ -88,6 +103,29 @@ if [[ ! -d if-sft-turboquant-lab/.git ]]; then
 fi
 bash /content/if-sft-turboquant-lab/run_full.sh
 ```
+
+For an existing Colab checkout after the Torch compatibility fix:
+
+```bash
+%%bash
+set -euo pipefail
+cd /content/if-sft-turboquant-lab
+git pull --ff-only
+git submodule update --init
+python - <<'PY'
+import torch
+assert torch.__version__ == "2.11.0+cu128", torch.__version__
+assert torch.version.cuda == "12.8", torch.version.cuda
+assert torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+print("Keeping existing Torch:", torch.__version__, torch.cuda.get_device_name(0))
+PY
+bash run_full.sh --fsr-only
+```
+
+This is a source-build path, not a verified Colab binary install. The development
+machine has no CUDA GPU/toolkit, so real compilation and model inference must still
+be validated in the Colab runtime. The pipeline will not change Torch to get past
+a build failure.
 
 Useful options:
 
@@ -177,6 +215,7 @@ env/
   dataset.json
   pip-freeze.txt
   nvidia-smi.txt
+  vllm-build.json                 # local build compiler/Torch/source/wheel provenance
 ```
 
 `results/`, `env/`, model artifacts and credentials are excluded from Git.

@@ -1,5 +1,38 @@
 # Validation record
 
+## Torch 2.11 / Colab compatibility fix (2026-09-16)
+
+Ten additional temporary CPU checks passed, executed directly from stdin (no test
+files or test dependency installation): existing 2.11.0+cu128 acceptance; wrong
+Torch/toolkit rejection; no-deps/no-build-isolation build flags; protected stack
+pip rejection; frontend additions without replacement; installed-version checks;
+pinned v0.20.0 source/preset contract; auditing extras on installed packages;
+streaming wheel hash; recursive upstream requirement loading. The extras audit
+regression was observed failing before its fix, then passing.
+
+Python compilation, Bash syntax and `git diff --check` passed. Independent source
+review found the extras-audit gap and it was corrected. These checks do not prove
+CUDA compilation or model inference succeeds on Colab.
+
+Upstream investigation:
+
+- `c6fe94b4d5b418fa213af0e5884eddd304333dcd` is the first parent of the Torch
+  2.13 bump `75ccdf31458070501a7ca01eb1ac11728a0933fd`; its CUDA requirements still
+  specify Torch 2.11 but include CUDA-13-specific dependency extras. Its cu128 wheel
+  index returned 404.
+- The public issue #41726 reports Torch 2.11.0+cu130, not the user's cu128 build.
+- Inspected official release assets for v0.20.0, v0.20.2, v0.21.0 and v0.24.0;
+  no cu128 binary was listed. Do not substitute cu129/cu130 wheels.
+- Chose official v0.20.0 (`88d34c6409e9fb3c7b8ca0c04756f061d2099eb1`): its
+  requirements and CMake both specify Torch 2.11; its source contains all three
+  requested TQ presets and CUDA 12.8 build branches.
+- Build hooks now operate on a separate local clone, using the current Torch and
+  matching nvcc; no precompiled fallback or alternate Torch environment exists.
+
+Actual source build, dependency availability in the user's Colab, and GPU tests
+remain unverified on the development Windows host. A conflicting installed
+dependency still fails safely rather than being overwritten.
+
 Development platform: Windows, Python 3.11; no Torch or GPU inference runtime.
 
 ## CPU verification

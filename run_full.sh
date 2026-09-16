@@ -13,8 +13,10 @@ Preserves the existing Torch/CUDA stack. Refuses incompatible dependencies.
 FORCE=1 reruns completed inference. HF_TOKEN uses the Hugging Face login/cache.
 Each stage has logs; completed outputs are validated against hashes and settings.
 
-Requirements: Linux/Colab, CUDA GPU with BF16, existing Torch, compatible upstream
-TurboQuant-capable vLLM build. A compatible vLLM binary cannot be assumed.
+Requirements: Linux/Colab, BF16 GPU, existing Torch 2.11.0. Missing vLLM is built
+from pinned v0.20.0 source using existing Torch and matching nvcc/CUDA toolkit.
+No Torch/CUDA replacement or precompiled CUDA mismatch fallback is permitted.
+Compilation needs an existing C++ compiler and may take substantial time.
 
 PPL LIMITATION: the original local eval_ppl.py has no TurboQuant cache backend.
 It is preserved byte-for-byte. Default exit 2 after FSR reports this limitation.

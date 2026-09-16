@@ -26,17 +26,24 @@ def protected(name):
     name = canonical(name)
     # These are separate build/frontend packages, not CUDA runtime replacements.
     # They can be resolved independently of Torch's installed runtime.
-    if name == "nvidia-cudnn-frontend" or name.startswith("nvidia-cutlass-dsl"):
+    # cuda-tile without its optional [tileiras] extra is a separate Python
+    # compiler package. nvdisasm is a standalone binary inspection tool. Neither
+    # replaces Torch, libcudart, nvcc or the installed CUDA toolkit. Any toolkit
+    # dependencies requested by extras are still rejected by the full plan audit.
+    if name in {"nvidia-cudnn-frontend", "cuda-tile", "nvidia-cuda-nvdisasm"} or name.startswith("nvidia-cutlass-dsl"):
         return False
     return (name in {"torch", "torchvision", "torchaudio", "triton", "pytorch-triton"}
             or name.startswith(("nvidia-", "cuda-", "cupy", "triton-")))
 
 
 def validate_install_plan(report, existing):
+    blocked = []
     for entry in report.get("install", []):
         name = canonical(entry["metadata"]["name"])
         if protected(name):
-            raise RuntimeError(f"Refusing pip change to protected package: {name}")
+            blocked.append(name)
+    if blocked:
+        raise RuntimeError("Refusing pip changes to protected packages: " + ", ".join(sorted(set(blocked))))
 
 
 def torch_snapshot():

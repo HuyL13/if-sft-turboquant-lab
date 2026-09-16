@@ -72,7 +72,12 @@ satisfy upstream requirements after inspecting a pip dry-run report. Already
 satisfactory versions are retained where the dependency graph permits. Only the
 existing Torch/CUDA/Triton stack is frozen by exact-version constraints; any plan
 that would install or replace those protected packages is rejected. Separate
-CUTLASS DSL and cuDNN frontend packages are application/build dependencies.
+CUTLASS DSL, cuDNN frontend, base `cuda-tile`, and the standalone
+`nvidia-cuda-nvdisasm` utility are application/build dependencies. This does not
+enable installation of CUDA toolkit/runtime packages: for example, toolkit
+dependencies of `cuda-tile[tileiras]` remain blocked by the full plan audit.
+Installing auxiliary Python packages does not establish that their optional GPU
+backends support the current GPU/toolkit; this experiment uses upstream TurboQuant.
 Only audited dependency wheel URLs
 with SHA256 are installed with `--no-deps`. Only the pinned vLLM source is built;
 other dependencies must have binary wheels. An unsatisfiable graph stops; Torch

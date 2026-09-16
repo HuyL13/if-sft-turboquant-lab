@@ -1,5 +1,24 @@
 # Validation record
 
+## CUDA auxiliary package classification (2026-09-16)
+
+Reproduced the reported dry-run rejection of `cuda-tile`. Inspected exact PyPI
+metadata for cuda-tile 1.6.0, nvidia-cuda-nvdisasm 13.4.49, quack-kernels 0.6.5 and
+nvidia-cutlass-dsl 4.7.1. Base cuda-tile requires typing-extensions; its CUDA toolkit
+dependency is conditional on the tileiras extra. nvdisasm lists no dependencies.
+Added exact auxiliary exceptions for cuda-tile and nvidia-cuda-nvdisasm. Runtime,
+nvcc, toolkit, Torch and Triton still cannot be installed or replaced by the plan.
+All blocked names are now reported together before any install.
+
+Seven stdin CPU checks passed: reported auxiliary package plan; protected runtime
+names; toolkit extras cannot bypass audit; aggregated conflict messages; exact
+exception boundaries; invariant permits auxiliary additions; invariant still
+rejects Torch change. Python compilation and diff whitespace checks passed.
+No packages were installed and no GPU inference was performed in these tests.
+
+Sources: [NVIDIA cuTile](https://github.com/NVIDIA/cutile-python),
+[CUDA package component table](https://pypi.org/project/cuda-toolkit/).
+
 ## Packaging guard correction (2026-09-16)
 
 Reproduced the reported rejection of `packaging==24.0` against `packaging>=24.2`.

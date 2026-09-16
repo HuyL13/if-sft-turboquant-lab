@@ -68,6 +68,9 @@ a fresh system-Python snapshot of Torch/version/CUDA/RECORD and installed packag
 versions is compared before and after setup and inference, including failures.
 No notebook-kernel switch or `source activate` is needed. All model stages use the
 same venv Python. A completed environment is reused when its package list matches.
+If the Colab Python image does not provide `ensurepip`, the launcher creates
+the venv with `--without-pip` and bootstraps pip into it using system pip's
+`--python` option. System Torch is not modified by this fallback.
 
 Before model downloads, setup checks package consistency, Torch BF16 matrix
 multiplication, the compiled vLLM RMSNorm CUDA kernel, upstream TurboQuant source

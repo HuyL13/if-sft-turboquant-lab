@@ -43,6 +43,32 @@ def supported_driver(output):
         return False
 
 
+def create_venv(system_python, directory, environment):
+    ensurepip = subprocess.run(
+        [str(system_python), "-c", "import ensurepip"],
+        env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if ensurepip.returncode == 0:
+        subprocess.run([str(system_python), "-m", "venv", str(directory)],
+                       env=environment, check=True)
+        return
+
+    print("[SETUP] ensurepip unavailable; creating venv without pip", flush=True)
+    subprocess.run([str(system_python), "-m", "venv", "--without-pip", str(directory)],
+                   env=environment, check=True)
+    pip_help = subprocess.run(
+        [str(system_python), "-m", "pip", "--help"],
+        env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, check=True,
+    ).stdout
+    if "--python" not in pip_help:
+        raise RuntimeError("System pip lacks --python; cannot bootstrap pip into the isolated venv")
+    subprocess.run([
+        str(system_python), "-m", "pip", "--python", str(directory / "bin/python"),
+        "install", "--upgrade", "pip", "setuptools", "wheel",
+    ], env=environment, check=True)
+
+
 def system_snapshot(python, environment):
     code = """import hashlib,importlib.metadata as m,json,torch,sys
 d=m.distribution('torch')
@@ -94,7 +120,7 @@ def main(arguments=None):
         if not supported_driver(driver):
             raise RuntimeError("CUDA 13 wheel path requires NVIDIA driver >=580.65.06")
         if not directory.exists():
-            subprocess.run([system_python, "-m", "venv", str(directory)], env=environment, check=True)
+            create_venv(system_python, directory, environment)
         if not python.exists():
             raise RuntimeError("Incomplete .venv-cu130; inspect it before retrying, no automatic deletion")
         environment["PATH"] = str(directory / "bin") + os.pathsep + environment.get("PATH", "")

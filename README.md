@@ -129,6 +129,13 @@ PY
 bash run_full.sh --fsr-only
 ```
 
+If the shell resolves `python` to an incomplete system interpreter, point the
+launcher at the notebook interpreter explicitly:
+
+```bash
+IF_SFT_PYTHON=/usr/local/bin/python bash run_full.sh --fsr-only
+```
+
 The development machine has no CUDA GPU, so the new binary installation and GPU
 checks must still run on Colab. `--setup-only` performs setup and the small GPU
 checks without downloading or running the 7B model.

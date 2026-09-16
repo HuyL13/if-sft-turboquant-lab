@@ -28,6 +28,18 @@ fi
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 export PYTHONUNBUFFERED=1
+if [[ -n "${IF_SFT_PYTHON:-}" ]]; then
+    PYTHON_BIN="$IF_SFT_PYTHON"
+elif [[ -x /usr/local/bin/python ]]; then
+    PYTHON_BIN="/usr/local/bin/python"
+else
+    PYTHON_BIN="$(command -v python)"
+fi
+if [[ -z "$PYTHON_BIN" || ! -x "$PYTHON_BIN" ]]; then
+    echo "Python interpreter not found; set IF_SFT_PYTHON to the notebook Python" >&2
+    exit 1
+fi
+export IF_SFT_SYSTEM_PYTHON="$PYTHON_BIN"
 mkdir -p results/logs env
 
 # Existing initialized submodules are verified, never reset or pulled over edits.
@@ -35,7 +47,7 @@ if [[ ! -f Model-Fingerprint/report_FSR_sft_chat.py || ! -f upstream/vllm/vllm/c
     git submodule update --init --depth 1
 fi
 case "${IF_SFT_RUNTIME:-isolated}" in
-    isolated) python -X utf8 -m scripts.isolated_runtime "$@" 2>&1 | tee results/logs/run_full.log ;;
-    existing) python -X utf8 -m scripts.pipeline "$@" 2>&1 | tee results/logs/run_full.log ;;
+    isolated) "$PYTHON_BIN" -X utf8 -m scripts.isolated_runtime "$@" 2>&1 | tee results/logs/run_full.log ;;
+    existing) "$PYTHON_BIN" -X utf8 -m scripts.pipeline "$@" 2>&1 | tee results/logs/run_full.log ;;
     *) echo "Invalid IF_SFT_RUNTIME; choose isolated or existing" >&2; exit 1 ;;
 esac

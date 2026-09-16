@@ -74,7 +74,9 @@ def main(arguments=None):
     environment = clean_environment()
     if sys.prefix != sys.base_prefix:
         raise RuntimeError("Launch run_full.sh with Colab's system Python, outside any activated venv")
-    system_python = sys.executable
+    system_python = Path(os.environ.get("IF_SFT_SYSTEM_PYTHON", sys.executable)).resolve()
+    if not system_python.is_file():
+        raise RuntimeError(f"Configured system Python does not exist: {system_python}")
     before = system_snapshot(system_python, environment)
     directory = ROOT / ".venv-cu130"
     python = directory / "bin/python"

@@ -1,5 +1,18 @@
 # Validation record
 
+## Packaging guard correction (2026-09-16)
+
+Reproduced the reported rejection of `packaging==24.0` against `packaging>=24.2`.
+The guard now freezes only Torch/CUDA/Triton, allowing ordinary application/build
+dependencies to satisfy upstream requirements through the audited wheel plan.
+Six temporary CPU checks passed: packaging upgrade accepted; sufficient packaging
+retained; incompatible Torch rejected; protected package plans rejected; ordinary
+package changes accepted by the invariant; protected changes/additions rejected.
+Python compilation passed. No packages were installed during these tests.
+Earlier statements below about freezing every distribution describe the previous
+policy and are superseded by this correction. CUDA build/inference remains untested
+on this Windows development machine.
+
 ## Torch 2.11 / Colab compatibility fix (2026-09-16)
 
 Ten additional temporary CPU checks passed, executed directly from stdin (no test

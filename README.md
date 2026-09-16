@@ -67,14 +67,16 @@ current GPU's compute capability. Work happens in a separate local clone under
 allows successful builds to be reused. Installed vLLM is reused only if its
 TurboQuant source matches the pin. See [upstream build guidance](https://github.com/vllm-project/vllm/blob/v0.20.0/docs/getting_started/installation/gpu.cuda.inc.md).
 
-Non-Torch packages are installed only when absent and after inspecting a pip dry-run
-report. Existing distributions are constrained; any resolver plan that would change
-one or add/change Torch, CUDA runtime or Triton is rejected. Separate CUTLASS DSL
-and cuDNN frontend packages may be added when absent; installed versions remain
-protected. Only audited dependency wheel URLs
+Application/build dependencies such as `packaging` may be installed or updated to
+satisfy upstream requirements after inspecting a pip dry-run report. Already
+satisfactory versions are retained where the dependency graph permits. Only the
+existing Torch/CUDA/Triton stack is frozen by exact-version constraints; any plan
+that would install or replace those protected packages is rejected. Separate
+CUTLASS DSL and cuDNN frontend packages are application/build dependencies.
+Only audited dependency wheel URLs
 with SHA256 are installed with `--no-deps`. Only the pinned vLLM source is built;
-other dependencies must have binary wheels. A conflicting existing environment
-stops, rather than being upgraded.
+other dependencies must have binary wheels. An unsatisfiable graph stops; Torch
+is never changed to satisfy application requirements.
 Torch/CUDA snapshots are checked in fresh subprocesses after each installation and
 after inference. Credentials are read by the normal HF/Git clients, never written to
 experiment manifests.

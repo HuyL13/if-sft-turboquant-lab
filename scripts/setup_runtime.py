@@ -1,6 +1,6 @@
-"""Install only missing dependencies, after auditing a binary-only pip plan.
+"""Resolve application dependencies after auditing a binary-only pip plan.
 
-Existing distributions (not just torch) are constrained and cannot be replaced.
+Torch and the CUDA/Triton runtime are constrained and cannot be replaced.
 The accepted plan's exact wheel URLs are installed with --no-deps, preventing a
 second resolver from selecting a different dependency graph.
 """
@@ -25,7 +25,7 @@ def installed():
 def protected(name):
     name = canonical(name)
     # These are separate build/frontend packages, not CUDA runtime replacements.
-    # Existing versions remain protected by validate_install_plan regardless.
+    # They can be resolved independently of Torch's installed runtime.
     if name == "nvidia-cudnn-frontend" or name.startswith("nvidia-cutlass-dsl"):
         return False
     return (name in {"torch", "torchvision", "torchaudio", "triton", "pytorch-triton"}
@@ -35,8 +35,8 @@ def protected(name):
 def validate_install_plan(report, existing):
     for entry in report.get("install", []):
         name = canonical(entry["metadata"]["name"])
-        if protected(name) or name in existing:
-            raise RuntimeError(f"Refusing pip change to protected/existing package: {name}")
+        if protected(name):
+            raise RuntimeError(f"Refusing pip change to protected package: {name}")
 
 
 def torch_snapshot():
@@ -54,8 +54,10 @@ def assert_unchanged(before, distributions):
     if torch_snapshot() != before:
         raise RuntimeError("Torch/CUDA changed; setup FAILED. No automatic reinstall attempted.")
     now = installed()
-    if any(now.get(name) != version for name, version in distributions.items()):
-        raise RuntimeError("An existing distribution changed; setup FAILED")
+    original = {n: v for n, v in distributions.items() if protected(n)}
+    current = {n: v for n, v in now.items() if protected(n)}
+    if current != original:
+        raise RuntimeError("Protected Torch/CUDA/Triton distributions changed; setup FAILED")
 
 
 def missing_requirements(requirements, existing):
@@ -72,7 +74,9 @@ def missing_requirements(requirements, existing):
         if name not in existing:
             missing.append(value)
         elif not requirement.specifier.contains(existing[name], prereleases=True):
-            raise RuntimeError(f"Existing {name}=={existing[name]} conflicts with {value}; refusing replacement")
+            if protected(name):
+                raise RuntimeError(f"Existing {name}=={existing[name]} conflicts with {value}; refusing replacement")
+            missing.append(value)
     return missing
 
 
@@ -83,8 +87,8 @@ def install_missing(requirements, env_dir, before, distributions):
     if not requirements:
         return
     env_dir = Path(env_dir)
-    constraint = env_dir / "existing-constraints.txt"
-    constraint.write_text("\n".join(f"{n}=={v}" for n, v in installed().items()) + "\n", encoding="utf-8")
+    constraint = env_dir / "protected-constraints.txt"
+    constraint.write_text("\n".join(f"{n}=={v}" for n, v in distributions.items() if protected(n)) + "\n", encoding="utf-8")
     plan = env_dir / "pip-plan.json"
     command = [sys.executable, "-m", "pip", "install", "--dry-run", "--only-binary=:all:",
                "--report", str(plan), "--constraint", str(constraint), *requirements]
